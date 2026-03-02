@@ -1,0 +1,71 @@
+:root {
+  font-family: 'Inter', 'PingFang SC', system-ui, sans-serif;
+  color: #1f2937;
+  background: #f4f6fb;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+
+.app { max-width: 1120px; margin: 0 auto; padding: 16px; }
+.hero {
+  background: linear-gradient(120deg, #fb923c, #f97316);
+  color: #fff;
+  border-radius: 16px;
+  padding: 22px;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.metrics div { background: rgba(255,255,255,.2); border-radius: 12px; padding: 10px; }
+.metrics strong { display: block; font-size: 22px; }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.tabs button { border: none; border-radius: 999px; padding: 8px 14px; background: #e5e7eb; cursor: pointer; }
+.tabs button.active { background: #f97316; color: #fff; }
+
+.panel { background: #fff; border-radius: 14px; padding: 16px; }
+.grid2, .grid3 { display: grid; gap: 12px; }
+.grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
+.list { display: grid; gap: 10px; }
+.listItem {
+  text-align: left;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px;
+  cursor: pointer;
+}
+.urgency { font-size: 12px; margin-left: 6px; padding: 2px 6px; border-radius: 999px; color: #fff; }
+.urgency.高 { background: #ef4444; }
+.urgency.中 { background: #f59e0b; }
+.urgency.低 { background: #10b981; }
+
+.filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.form { display: grid; gap: 8px; }
+input, select, textarea, button { font: inherit; }
+input, select, textarea {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px;
+}
+textarea { min-height: 90px; }
+label { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+button { border: none; background: #f97316; color: #fff; border-radius: 8px; padding: 9px 12px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 800px) {
+  .metrics, .grid2, .grid3, .filters { grid-template-columns: 1fr; }
+}
