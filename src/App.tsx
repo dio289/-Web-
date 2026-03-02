@@ -1,10 +1,19 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useMemo, useRef, useState } from 'react';
 import { articleCards, seedPets, seedPosts } from './data';
 import { usePersistentState } from './hooks/usePersistentState';
 import { AdoptionApplication, ApplicationStatus, CommunityPost, Donation, Pet, Volunteer } from './types';
 
-const sections = ['首页', '领养中心', '审核中心', '志愿者', '捐赠公示', '社区互动'] as const;
+const sections = ['首页', '领养中心', '审核中心', '志愿者', '捐赠公示', '社区互动', '数据管理'] as const;
 type Section = (typeof sections)[number];
+
+type ExportPayload = {
+  pets: Pet[];
+  applications: AdoptionApplication[];
+  volunteers: Volunteer[];
+  donations: Donation[];
+  posts: CommunityPost[];
+  exportedAt: string;
+};
 
 export function App() {
   const [active, setActive] = useState<Section>('首页');
@@ -19,6 +28,8 @@ export function App() {
   const [selectedPetId, setSelectedPetId] = useState<number | null>(null);
   const [keyword, setKeyword] = useState('');
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const selectedPet = pets.find((pet) => pet.id === selectedPetId) ?? null;
   const availablePets = useMemo(() => {
     return pets
@@ -31,6 +42,8 @@ export function App() {
 
   const donationSum = donations.reduce((sum, d) => sum + d.amount, 0);
   const adoptionRate = pets.length ? Math.round((pets.filter((p) => p.adopted).length / pets.length) * 100) : 0;
+  const pendingCount = applications.filter((item) => item.status === '待审核').length;
+  const homeVisitCount = applications.filter((item) => item.status === '家访中').length;
 
   const submitApplication = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -62,13 +75,16 @@ export function App() {
   };
 
   const changeAppStatus = (id: number, status: ApplicationStatus) => {
-    setApplications((prev) => prev.map((app) => (app.id === id ? { ...app, status } : app)));
+    setApplications((prev) => {
+      const target = prev.find((app) => app.id === id);
+      if (!target) return prev;
 
-    if (status === '通过') {
-      const target = applications.find((app) => app.id === id);
-      if (!target) return;
-      setPets((prev) => prev.map((pet) => (pet.id === target.petId ? { ...pet, adopted: true } : pet)));
-    }
+      if (status === '通过') {
+        setPets((petList) => petList.map((pet) => (pet.id === target.petId ? { ...pet, adopted: true } : pet)));
+      }
+
+      return prev.map((app) => (app.id === id ? { ...app, status } : app));
+    });
   };
 
   const submitVolunteer = (event: FormEvent<HTMLFormElement>) => {
@@ -109,6 +125,7 @@ export function App() {
     const form = new FormData(event.currentTarget);
     const content = String(form.get('content') || '');
     if (!content.trim()) return;
+
     const item: CommunityPost = {
       id: Date.now(),
       author: String(form.get('author') || '匿名用户'),
@@ -120,6 +137,61 @@ export function App() {
     event.currentTarget.reset();
   };
 
+  const exportData = () => {
+    const payload: ExportPayload = {
+      pets,
+      applications,
+      volunteers,
+      donations,
+      posts,
+      exportedAt: new Date().toISOString()
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `adoption-platform-backup-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importData = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = String(reader.result || '{}');
+        const parsed = JSON.parse(text) as Partial<ExportPayload>;
+        if (!parsed.pets || !parsed.applications || !parsed.volunteers || !parsed.donations || !parsed.posts) {
+          window.alert('文件格式不完整，请检查备份文件。');
+          return;
+        }
+
+        setPets(parsed.pets);
+        setApplications(parsed.applications);
+        setVolunteers(parsed.volunteers);
+        setDonations(parsed.donations);
+        setPosts(parsed.posts);
+        window.alert('数据导入成功。');
+      } catch {
+        window.alert('导入失败，文件不是有效 JSON。');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const resetDemoData = () => {
+    if (!window.confirm('确定重置为演示数据吗？这会清空当前录入内容。')) return;
+    setPets(seedPets);
+    setApplications([]);
+    setVolunteers([]);
+    setDonations([]);
+    setPosts(seedPosts);
+  };
+
   return (
     <div className="app">
       <header className="hero">
@@ -127,15 +199,18 @@ export function App() {
         <p>以透明流程连接救助机构、领养家庭与志愿者，让每一份善意都可追踪。</p>
         <div className="metrics">
           <div><strong>{pets.filter((p) => !p.adopted).length}</strong><span>待领养</span></div>
-          <div><strong>{applications.length}</strong><span>申请总量</span></div>
+          <div><strong>{pendingCount}</strong><span>待审核</span></div>
+          <div><strong>{homeVisitCount}</strong><span>家访中</span></div>
           <div><strong>{adoptionRate}%</strong><span>领养完成率</span></div>
           <div><strong>¥{donationSum}</strong><span>累计捐赠</span></div>
         </div>
       </header>
 
-      <nav className="tabs">
+      <nav className="tabs" aria-label="页面模块导航">
         {sections.map((sec) => (
-          <button key={sec} className={active === sec ? 'active' : ''} onClick={() => setActive(sec)}>{sec}</button>
+          <button key={sec} className={active === sec ? 'active' : ''} onClick={() => setActive(sec)}>
+            {sec}
+          </button>
         ))}
       </nav>
 
@@ -143,7 +218,10 @@ export function App() {
         {active === '首页' && (
           <section className="grid3">
             {articleCards.map((card) => (
-              <article key={card.title} className="card"><h3>{card.title}</h3><p>{card.content}</p></article>
+              <article key={card.title} className="card">
+                <h3>{card.title}</h3>
+                <p>{card.content}</p>
+              </article>
             ))}
           </section>
         )}
@@ -151,13 +229,22 @@ export function App() {
         {active === '领养中心' && (
           <section>
             <div className="filters">
-              <input placeholder="搜索名字/故事/性格关键词" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
-              <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
+              <input
+                aria-label="关键词搜索"
+                placeholder="搜索名字/故事/性格关键词"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+              />
+              <select aria-label="按城市筛选" value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
                 <option value="全部">全部城市</option>
-                {[...new Set(pets.map((p) => p.city))].map((city) => <option key={city} value={city}>{city}</option>)}
+                {[...new Set(pets.map((p) => p.city))].map((city) => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
               </select>
-              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-                <option value="全部">全部类型</option><option value="猫咪">猫咪</option><option value="狗狗">狗狗</option>
+              <select aria-label="按类型筛选" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                <option value="全部">全部类型</option>
+                <option value="猫咪">猫咪</option>
+                <option value="狗狗">狗狗</option>
               </select>
             </div>
 
@@ -165,7 +252,10 @@ export function App() {
               <div className="list">
                 {availablePets.map((pet) => (
                   <button key={pet.id} className="listItem" onClick={() => setSelectedPetId(pet.id)}>
-                    <h3>{pet.name} <span className={`urgency ${pet.urgency}`}>{pet.urgency}优先</span></h3>
+                    <h3>
+                      {pet.name}
+                      <span className={`urgency ${pet.urgency}`}>{pet.urgency}优先</span>
+                    </h3>
                     <p>{pet.type} · {pet.age} · {pet.city}</p>
                     <small>{pet.health}</small>
                   </button>
@@ -295,6 +385,30 @@ export function App() {
                 </article>
               ))}
             </div>
+          </section>
+        )}
+
+        {active === '数据管理' && (
+          <section className="grid2">
+            <article className="card form">
+              <h3>数据备份与恢复</h3>
+              <p>建议每周导出一次备份，便于公益活动复盘与审计归档。</p>
+              <button onClick={exportData} type="button">导出 JSON 备份</button>
+              <button onClick={() => fileInputRef.current?.click()} type="button">导入 JSON 备份</button>
+              <input ref={fileInputRef} type="file" accept="application/json" onChange={importData} hidden />
+              <button className="danger" onClick={resetDemoData} type="button">重置为演示数据</button>
+            </article>
+
+            <article className="card">
+              <h3>当前数据规模</h3>
+              <ul className="statsList">
+                <li>宠物档案：{pets.length}</li>
+                <li>领养申请：{applications.length}</li>
+                <li>志愿者：{volunteers.length}</li>
+                <li>捐赠记录：{donations.length}</li>
+                <li>社区帖子：{posts.length}</li>
+              </ul>
+            </article>
           </section>
         )}
       </main>
